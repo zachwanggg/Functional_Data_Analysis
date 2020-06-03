@@ -1,0 +1,158 @@
+---
+title: "fMRI Data Analysis and Curve Smoothing"
+author: "Zach Wang"
+date: "5/29/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Introduction
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", tidt=TRUE, warning = FALSE)
+library(zoo)
+library(ggplot2)
+library(lattice)
+library(corrplot)
+library(fda.usc)
+library(dplyr)
+
+data_15may2020 <- read.csv("~/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+
+```
+
+# 1. Plot entire time Series
+The dataframe is converted to 'zoo' series to plot using package *zoo*. I first plot the 32 time series individually and then plot them all on one plot to compare. However, other than seeing some peakness possibly occur around the same time, it is hard to provide any further analysis for this high dimensional time series data.
+```{r plotAllRaw, echo=FALSE}
+z <- read.zoo(data_15may2020)
+data_15may2020 <- select(data_15may2020, -c(X))
+plot(z)
+# ggplot2
+autoplot(z, facet = NULL)
+```
+
+# 2. Summary Statistics
+In the *boxplot*, I found several outliers with large value. Later I may try separate these outliers and put them on a different plot. 
+
+SM6, SM7, SM9 and SM15 have maximum value greater than 11. I will plot the paired lineplots of them in part 3.
+
+```{r summaryStats}
+# boxplot
+boxplot(data_15may2020, horizontal = TRUE)
+title(main="boxplot of 32 nodes bold signal")
+
+# Summary
+summary(data_15may2020)
+```
+
+
+# 3. Paired lineplots
+Below are the paired lineplots of SM6, SM7, SM9, SM15. 
+
+While SM1 represents the a "normal behaving" node, SM6, SM7, SM9 and SM15 are those with the larget value around the peak. 
+One thing to notice is that SM7 and SM9 tend to move to the opposite direction around the peak time. 
+```{r pairPlot}
+par(mfrow=c(2,2))
+colList1 <- c(1, 6, 7, 9)
+colList2 <- c(6, 7, 9, 15)
+nameList <- names(data_15may2020)
+
+for(i in 1:4) { 
+        plot(data_15may2020[,colList1[i]],type = "l",
+             xlab = "time", ylab = "y_axis")
+        lines(data_15may2020[,colList2[i]], col = "red")
+        axis(side = 4, at = pretty(data_15may2020[,colList2[i]]),    
+             ylab=names(data_15may2020)[colList2[i]])
+        legend(x = "bottomright", 
+               legend = c(nameList[colList1[i]], nameList[colList2[i]]), 
+               col = c("black", "red"),
+               cex=0.45,
+               lty = c(1, 1))
+        title(main=paste(nameList[colList1[i]], "&", nameList[colList2[i]]))
+}
+```
+
+
+
+# 4. Correlation of Raw data
+This correlation heatmap is not very useful, because correlation on high dimensional space is not only hard to interpret but also missing a lot of information. I kept it here just for future references. 
+
+Below are the 4 correlation heatmaps of the time-series data of the 32 nodes divided into 4 time range. We can see the correlation between each pair of nodes are changing from time to time. It again, showing us the correlation analysis on high dimensional time series is not very useful.
+```{r corrPlot}
+par(mfrow=c(2,2))
+for (i in 0:3){ 
+        cor_mat <- cor(z[(i*150):(i*150+150),])
+        #corrplot(cor_mat, method = "color", type = "upper", order = "hclust")
+        corrplot(cor_mat, method = "color", type = "upper")
+        title(main = paste("from index", i*150, "to", i*150+150))
+}
+```
+
+# 5. Fourier Smoothing of fMRI data
+I applied *Fourier basis function* to smooth the data of a 600x32 time-series matrix, because according to the visualization of the data I assume the data is periodic since they are all oscilating around zero. Below I created four smoothing curve plots, each with the respective K value 8, 50, 80,110 indicating how many basis functions were used in the *Fourier Basis system*.  
+```{r smoothPlot}
+time <- (1:600)
+data_mat <- as.matrix(data_15may2020)
+kList <- c(8, 50, 80, 110)
+par(mfrow=c(2,2))
+
+for(i in 1:4) {
+   basis <- create.fourier.basis(c(1,600), kList[i])
+   smoothfd <- smooth.basis(time, data_mat, basis)$fd
+   plot(smoothfd)
+   title(main=paste("Fourier Basis Smoothing with K: ", kList[i]))
+}
+```
+
+# 6. mean GCV and SSE of Fourier Basis Smoothing with different K
+Below the code iterates the *fourier basis function* for different *K* values, and plot the corresponding *Generalized Cross-validation*  (*gcv*) and the *Sum of Squared Error* (*SSE*) measure on the y-axis. *gcv* is calculated using the criterion, $$\frac{n}{n-df(\lambda)}\frac{SSE}{n-df(\lambda)}$$
+
+This metrics is designed to twice-discounted for the degree of freedom in the basis functions. It is useful because we are increasing the number of basis function at each step. The result of *gcv* is a 300 x 32 matrix (because I limited the choice of K value to be no larger than 303, and the K=1,2 is not accepted by the algorithm in this case). I then plotted the mean value of the 32 columns.
+*SSE* is the frequently used *sum of squared errors* metrics in many statistical analysis, 
+$$ SSE=\sum_{j}^{n}[y_{j}-x(t_{j})]^2 $$
+
+```{r fourierKmse}
+smoothK.unwrapped = matrix(0, 300, 3)
+colnames(smoothK.unwrapped) = c('k', 'gcv', 'sse')
+kList <- c(3:303)
+
+for(row in 1:300) {
+        basis <- create.fourier.basis(c(1,600), kList[row])
+        smoothList <- smooth.basis(time, data_mat, basis)
+        smoothK.unwrapped[row, 1] = kList[row]
+        smoothK.unwrapped[row, 2] = mean(smoothList$gcv)                
+        smoothK.unwrapped[row, 3] = smoothList$SSE
+}
+par(mfrow=c(1,2))
+plot(smoothK.unwrapped[,1], smoothK.unwrapped[,2], xlab='K', ylab='GCV')
+plot(smoothK.unwrapped[,1], smoothK.unwrapped[,3], xlab='K', ylab='SSE')
+```
+From the two error measure curves, we can see the error measures kept decreasing as K became larger. It is not surprising if we pick the number large enough, the curves will fit the raw data almost perfectly. But we will be going exact the opposite way of what we are trying to acheive. We are hoping to smooth the data, not to model it with more complexity. Thus, what is the optimal value of K still requires more investigations. According to "*Elbow Method*", we might want to consider picking K equals to around 180, but I am not sure at this point.
+
+We can see the speed of error decreasing slows down a bit around K=80, so that's why I have plotted the smoothed curves with K=80 in part 5 above. What I have found is, after K is greater than certain threshold value, keeping increasing the K value will not change the overall shape of smoothed curve too much, but instead, the amplitude of the peak values will be captured as a larger value (see plot in section 5 around t = 300 and K = 80 & 110). 
+
+In the next command cell, I again, plotted the the raw data, and compare it with the smoothed data using fourier basis function with K=80 & 110 & 180
+
+# 7. Plot of raw data and smoothed data using fourier basis function with K=80 & 110 & 180  
+```{r raw_fourier_with_K_80_110}
+par(mfrow=c(2,2))
+
+plot(index(data_15may2020),data_15may2020[,1], type = 'l', ylim = c(-7,7),
+     xlab='time', ylab='value')
+title(main=paste("Raw Data"))
+cl<-rainbow(32)
+for (i in 2:32){
+        lines(index(data_15may2020),data_15may2020[,i], col=cl[i])
+}
+
+for(i in c(80,110,180)) {
+        basis <- create.fourier.basis(c(1,600), i)
+        smoothfd <- smooth.basis(time, data_mat, basis)$fd
+        plot(smoothfd)
+        title(main=paste("Fourier Basis Smoothing with K: ", i))
+}
+```
