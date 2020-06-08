@@ -1,10 +1,11 @@
 ---
 title: "fMRI Data Analysis and Curve Smoothing"
 author: "Zach Wang"
-date: "5/29/2020"
+date: "6/7/2020"
 output:
   html_document:
     df_print: paged
+  word_document: default
   pdf_document: default
 ---
 
@@ -20,8 +21,10 @@ library(lattice)
 library(corrplot)
 library(fda.usc)
 library(dplyr)
+library(scatterplot3d)
 
-data_15may2020 <- read.csv("~/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+
 
 ```
 
@@ -155,4 +158,83 @@ for(i in c(80,110,180)) {
         plot(smoothfd)
         title(main=paste("Fourier Basis Smoothing with K: ", i))
 }
+```
+
+# 8. fPCA_1
+loop for differnt choice of nharm (# of Priciple Components) of a fixed smoothfd
+```{r fPCA_loop_}
+basis <- create.fourier.basis(c(1,600), 280)
+time <- (1:600)
+data_mat <- as.matrix(data_15may2020)
+smoothfd <- smooth.basis(time, data_mat, basis)$fd
+
+N = c(1:15)
+pcalist.sumvar = matrix(0, length(N), 4)
+colnames(pcalist.sumvar) = c('total_var_explained', 'max_single_func'
+                             ,'mean_func', 'median_func')
+
+for(row in 2:length(N)) {
+  pcalist = pca.fd(smoothfd, nharm=row, harmfdPar=fdPar(smoothfd))
+  rotpcalist = varmx.pca.fd(pcalist)
+  pcalist.sumvar[row,1] = sum(rotpcalist$varprop)
+  pcalist.sumvar[row,2] = max(rotpcalist$varprop)
+  pcalist.sumvar[row,3] = mean(rotpcalist$varprop)
+  pcalist.sumvar[row,4] = median(rotpcalist$varprop)
+}
+par(mfrow=c(2,2))
+plot(N, pcalist.sumvar[,1], xlab='nharm', ylab='total_var')
+plot(N, pcalist.sumvar[,2], xlab='nharm', ylab='max_single_func')
+plot(N, pcalist.sumvar[,3], xlab='nharm', ylab='mean_func')
+plot(N, pcalist.sumvar[,4], xlab='nharm', ylab='median_func')
+```
+
+# 9. fPCA_2 
+3D plot of top 3 Principle component:
+
+3D scatter plot is created by specifying narhm = 6 with total variance covered about 65%, and picking the top 3 PCs (10.5%, 15.03%, 10.3% respectively) to draw.
+```{r 3D_scatter_fPCA}
+
+pcalist = pca.fd(smoothfd, nharm=6, harmfdPar=fdPar(smoothfd))
+rotpcalist = varmx.pca.fd(pcalist)
+par(mfrow=c(2,3))
+plot.pca.fd(rotpcalist)
+colvar <- rotpcalist$varprop
+colScores <- rotpcalist$scores
+lst <- sort(colvar, index.return=TRUE, decreasing=TRUE)
+topidx <- lapply(lst, `[`, lst$x %in% head(unique(lst$x),3))$ix
+
+par(mfrow=c(2,2))
+for (deg in c(60,120,240,300)){
+  scatterplot3d(colScores[,topidx[1]],colScores[, topidx[2]]
+              ,colScores[,topidx[3]]
+              ,xlab=paste('function ', topidx[1])
+              ,ylab=paste('function ', topidx[2])
+              ,zlab=paste('function ', topidx[3]), 
+              type='h', angle=deg, color =index(colScores)
+              ,main = paste("Three rotated PC functions with largest scores, degree = ", deg))
+  text(colScores[, topidx[2]]~colScores[,topidx[1]],labels=index(colScores),data=colScores, cex=0.9, font=2)
+}
+
+```
+
+# 10. fPCA_3
+The 2D scatter plot is created by specifying nharm=2 (# of fPCAs). 
+```{r 2D_plot_fPCA}
+pcalist = pca.fd(smoothfd, nharm=2, harmfdPar=fdPar(smoothfd))
+rotpcalist = varmx.pca.fd(pcalist)
+par(mfrow=c(1,2))
+plot.pca.fd(rotpcalist)
+colvar <- rotpcalist$varprop
+colScores <- rotpcalist$scores
+lst <- sort(colvar, index.return=TRUE, decreasing=TRUE)
+topidx <- lapply(lst, `[`, lst$x %in% head(unique(lst$x),3))$ix
+
+par(mfrow=c(1,1))
+
+plot(colScores[,topidx[1]],colScores[, topidx[2]]
+                ,xlab=paste('function ', topidx[1])
+                ,ylab=paste('function ', topidx[2])
+                ,color =index(colScores)
+        ,main = paste("Two rotated PC functions"))
+text(colScores[, topidx[2]]~colScores[,topidx[1]],labels=index(colScores),data=colScores, cex=0.9, font=2)
 ```
