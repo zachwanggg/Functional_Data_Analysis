@@ -1,0 +1,57 @@
+---
+title: "fMRI Data Analysis and Curve Smoothing"
+author: "Zach Wang"
+date: "6/15/2020"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+## Progress summary
+In previous work, we used a set of fourier-series basis function to smooth the entire 32 nodes, and then applied fPCA to analyze the variance of the smoothed functions. 
+Now I am going to try smooth only a subset of nodes. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", tidt=TRUE, warning = FALSE)
+library(zoo)
+library(ggplot2)
+library(lattice)
+library(corrplot)
+library(fda.usc)
+library(dplyr)
+library(scatterplot3d)
+
+data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+z <- read.zoo(data_15may2020)
+data_15may2020 <- select(data_15may2020, -c(X))
+```
+
+# 1. fPCA with node SM1,SM6, SM7, SM9, SM15
+```{r plotfPCA}
+basis <- create.fourier.basis(c(1,600), 280)
+time <- (1:600)
+data_mat <- as.matrix(data_15may2020)
+#time <- (301:600)
+smoothfd <- smooth.basis(time, data_mat[1:600,c(1,6,7,9,15)], basis)$fd
+pcalist = pca.fd(smoothfd, nharm=2, harmfdPar=fdPar(smoothfd))
+rotpcalist = varmx.pca.fd(pcalist)
+par(mfrow=c(2,2))
+plot.pca.fd(rotpcalist)
+```
+
+# 2. fPCA with node SM1,SM2, SM3, SM4, SM5
+```{r plotfPCA}
+basis <- create.fourier.basis(c(1,600), 280)
+time <- (1:600)
+data_mat <- as.matrix(data_15may2020)
+#time <- (301:600)
+smoothfd <- smooth.basis(time, data_mat[1:600,c(1,2,3,4,5)], basis)$fd
+pcalist = pca.fd(smoothfd, nharm=2, harmfdPar=fdPar(smoothfd))
+rotpcalist = varmx.pca.fd(pcalist)
+par(mfrow=c(2,2))
+plot.pca.fd(rotpcalist)
+```
+
+Notes: Decrease number of nodes will have an effect of decrease Percentage of Variability, while decrease number of observations wont 
