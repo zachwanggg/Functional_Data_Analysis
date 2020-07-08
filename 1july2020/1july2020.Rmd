@@ -1,0 +1,82 @@
+---
+title: "fMRI fourier Curve Smoothing"
+author: "Zach Wang"
+date: "7/1/2020"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+# 1. read data and attach packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", tidt=TRUE, warning = FALSE)
+library(zoo)
+library(fda.usc)
+library(dplyr)
+library(reshape)
+#data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+data_15may2020 <- read.csv("/Users/hanwang/desktop/git_user/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
+z <- read.zoo(data_15may2020)
+data_15may2020 <- select(data_15may2020, -c(X))
+data_mat <- as.matrix(data_15may2020)
+```
+
+# 2. Generalized cross validation approach to select fourier basis models
+```{r Generalized_cross_validaiton_for_fourier_basis}
+fourier_selection <- function(time_subset, data_mat, node_subset, kList){
+  smoothK.unwrapped = matrix(0, length(kList), kList[1])
+  colnames(smoothK.unwrapped) = c('k', 'gcv', 'sse')
+  for(row in 1:length(kList)) {
+        basis <- create.fourier.basis(c(1,600), kList[row])
+        smoothList <- smooth.basis(time_subset, data_mat[,node_subset], basis)
+        smoothK.unwrapped[row, 1] = kList[row]
+        smoothK.unwrapped[row, 2] = mean(smoothList$gcv)                
+        smoothK.unwrapped[row, 3] = smoothList$SSE
+}
+  par(mfrow=c(1,2))
+  plot(smoothK.unwrapped[,1], smoothK.unwrapped[,2], xlab='K', ylab='GCV')
+  title(main=paste("Generalized-cross-validation"))
+  plot(smoothK.unwrapped[,1], smoothK.unwrapped[,3], xlab='K', ylab='SSE')
+  title(main=paste("SSE"))
+return(smoothK.unwrapped) 
+}
+selection_result=fourier_selection(time_subset=c(1:600), data_mat, node_subset=c(1), kList=c(3:303))
+```
+
+# 3. defined fourier smoothing functions 
+To study a single brain node response, specify the node number in the *node_subset* list. 
+```{r smoothing_function}
+f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
+  basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k)
+  fd_obj <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)
+  smoothfd <- fd_obj$fd
+  plot(smoothfd)
+  title(main=paste("Fourier Basis Smoothing of node:", node_subset, ", Basis_number:",k ))
+  return(fd_obj)
+}
+
+#result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset = c(1)
+#                         ,k=selection_result[which.min(selection_result[,2]),1],   
+#                         nharm=2)
+result_obj <- f_fourier_smooth(time_subset=c(1:600),data_mat,node_subset=c(1)
+                          ,k=50)
+
+smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+plot(smoothed_curve)
+
+### revised after here
+x=diff(ifelse(smoothed_curve>0,1,0)) #crossed 0
+(1:599)[x!=0]
+```
+
+# 3. Extract sinusoidal function fits
+```{r}
+result_obj$fd$coefs
+```
+
+# 4 predict 
+```{r}
+plot(data_mat[,1], type='l')
+lines(smooth.spline(1:600, data_mat[,1]), col='red', lwd=2)
+```

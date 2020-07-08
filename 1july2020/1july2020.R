@@ -1,12 +1,13 @@
 library(zoo)
 library(fda.usc)
 library(dplyr)
+library(reshape)
 library(xlsx)
 
 #####1. import data
 
-#data_15may2020 <- read.csv("/Users/hanwang/desktop/git_user/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
-data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/Git_desktop/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
+data_15may2020 <- read.csv("/Users/hanwang/desktop/git_user/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
+#data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/Git_desktop/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
 z <- read.zoo(data_15may2020)
 data_15may2020 <- select(data_15may2020, -c(X))
 data_mat <- as.matrix(data_15may2020)
@@ -38,6 +39,7 @@ basis = create.fourier.basis(c(1,600),7)
 phimat = eval.basis(c(1:600),basisobj=basis)
 phi.frame = data.frame(cbind(phimat,tt))
 melt.phi = melt(data=phi.frame,id.vars="tt")
+par(mfrow=c(1,1))
 plot(melt.phi$tt, melt.phi$value)
 
 #####

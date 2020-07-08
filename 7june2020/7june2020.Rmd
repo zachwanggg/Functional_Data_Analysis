@@ -24,8 +24,6 @@ library(dplyr)
 library(scatterplot3d)
 
 data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
-
-
 ```
 
 # 1. Plot entire time Series
