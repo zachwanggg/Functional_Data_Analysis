@@ -3,7 +3,7 @@ library(fda.usc)
 library(dplyr)
 library(reshape)
 library(xlsx)
-
+library(ggplot2)
 #####1. import data
 
 data_15may2020 <- read.csv("/Users/hanwang/desktop/git_user/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
@@ -42,11 +42,42 @@ melt.phi = melt(data=phi.frame,id.vars="tt")
 par(mfrow=c(1,1))
 plot(melt.phi$tt, melt.phi$value)
 
-#####
-#####
-basis7 = create.fourier.basis(rangeval = range(tt),nbasis = 281)
-fourier7.fd = smooth.basis(argvals = tt, y = data_mat[,10],fdParobj =basis7)$fd
-ovi7 = eval.fd(tt,fourier7.fd)
+########################
+########################
+result_obj <- f_fourier_smooth(time_subset=c(1:600),data_mat
+                               ,node_subset=c(1), k=50)
 
-## export coefdf
-write.csv(as.data.frame(coefdf), file = "C:/Users/Han Wang/Desktop/Git_desktop/Functional_Data_Analysis/coef.csv")
+smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+plot(smoothed_curve)
+
+
+
+### function
+plot.periodicCycle = function(data, original){
+  x=diff(ifelse(data>0,1,0))       #crossed 0---> -1: pos to neg,    1: neg to pos
+  z_idx=(1:599)[x!=0]             #returns: location index where curve crosses X-axis
+  N=idivide(length(z_idx),3)
+  i=1
+  result=data.frame(cycle=integer(), time=integer(), y_value=integer())
+  while (i<=N){
+    if(original==1){
+      tmp=data.frame(cycle=i, time=seq(z_idx[1+(i-1)*3],z_idx[3+(i-1)*3]), y_value=smoothed_curve[z_idx[1+(i-1)*3]:z_idx[3+(i-1)*3]])
+    }
+    else{
+      tmp=data.frame(cycle=i, time=seq(1,length(seq(z_idx[1+(i-1)*3],z_idx[3+(i-1)*3]))), y_value=smoothed_curve[z_idx[1+(i-1)*3]:z_idx[3+(i-1)*3]])  
+    }
+    result=rbind(result,tmp)
+    i=i+1
+  }
+  ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+}
+
+
+
+#result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset = c(1)
+#                         ,k=selection_result[which.min(selection_result[,2]),1],   
+#                         nharm=2)
+
+result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=50)
+smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+plot.periodicCycle(data=smoothed_curve, original=1)

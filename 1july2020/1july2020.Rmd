@@ -2,19 +2,23 @@
 title: "fMRI fourier Curve Smoothing"
 author: "Zach Wang"
 date: "7/1/2020"
+revised: "7/9/2020"
 output:
   html_document:
     df_print: paged
   word_document: default
   pdf_document: default
 ---
-# 1. read data and attach packages
+## 1. read data and attach packages
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align = "center", tidt=TRUE, warning = FALSE)
 library(zoo)
 library(fda.usc)
 library(dplyr)
 library(reshape)
+library(pracma)
+library(ggplot2)
+
 #data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
 data_15may2020 <- read.csv("/Users/hanwang/desktop/git_user/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
 z <- read.zoo(data_15may2020)
@@ -22,7 +26,7 @@ data_15may2020 <- select(data_15may2020, -c(X))
 data_mat <- as.matrix(data_15may2020)
 ```
 
-# 2. Generalized cross validation approach to select fourier basis models
+## 2. Generalized cross validation approach to select fourier basis models
 ```{r Generalized_cross_validaiton_for_fourier_basis}
 fourier_selection <- function(time_subset, data_mat, node_subset, kList){
   smoothK.unwrapped = matrix(0, length(kList), kList[1])
@@ -44,7 +48,7 @@ return(smoothK.unwrapped)
 selection_result=fourier_selection(time_subset=c(1:600), data_mat, node_subset=c(1), kList=c(3:303))
 ```
 
-# 3. defined fourier smoothing functions 
+## 3. defined fourier smoothing functions 
 To study a single brain node response, specify the node number in the *node_subset* list. 
 ```{r smoothing_function}
 f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
@@ -55,28 +59,46 @@ f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
   title(main=paste("Fourier Basis Smoothing of node:", node_subset, ", Basis_number:",k ))
   return(fd_obj)
 }
+```
 
-#result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset = c(1)
-#                         ,k=selection_result[which.min(selection_result[,2]),1],   
-#                         nharm=2)
+## 4. define the function to extract periodic cycle of a single node response
+```{r}
+plot.periodicCycle = function(data, original){
+  x=diff(ifelse(data>0,1,0))       #crossed 0---> -1: pos to neg,    1: neg to pos
+  z_idx=(1:599)[x!=0]             #returns: location index where curve crosses X-axis
+  N=idivide(length(z_idx),3)
+  i=1
+  result=data.frame(cycle=integer(), time=integer(), y_value=integer())
+  while (i<=N){
+    if(original==1){
+      tmp=data.frame(cycle=i, time=seq(z_idx[1+(i-1)*3],z_idx[3+(i-1)*3]), y_value=smoothed_curve[z_idx[1+(i-1)*3]:z_idx[3+(i-1)*3]])
+    }
+    else{
+      tmp=data.frame(cycle=i, time=seq(1,length(seq(z_idx[1+(i-1)*3],z_idx[3+(i-1)*3]))), y_value=smoothed_curve[z_idx[1+(i-1)*3]:z_idx[3+(i-1)*3]])  
+    }
+    result=rbind(result,tmp)
+    i=i+1
+  }
+  ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+}
+```
+
+### 4(a). Undersmooth with basis functions (the smalled GCV score)
+```{r undersmooth}
+# UnderSmoothed
 result_obj <- f_fourier_smooth(time_subset=c(1:600),data_mat,node_subset=c(1)
-                          ,k=50)
+                              ,k=selection_result[which.min(selection_result[,2]),1])
 
 smoothed_curve = eval.fd(c(1:600),result_obj$fd)
-plot(smoothed_curve)
-
-### revised after here
-x=diff(ifelse(smoothed_curve>0,1,0)) #crossed 0
-(1:599)[x!=0]
+plot.periodicCycle(data=smoothed_curve, original=0)
+plot.periodicCycle(data=smoothed_curve, original=1)
 ```
 
-# 3. Extract sinusoidal function fits
-```{r}
-result_obj$fd$coefs
-```
-
-# 4 predict 
-```{r}
-plot(data_mat[,1], type='l')
-lines(smooth.spline(1:600, data_mat[,1]), col='red', lwd=2)
+### 4(b). Oversmooth with basis functions
+```{r OverSmooth}
+# OverSmoothed, k=32
+result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=32)
+smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+plot.periodicCycle(data=smoothed_curve, original=0)
+plot.periodicCycle(data=smoothed_curve, original=1)
 ```
