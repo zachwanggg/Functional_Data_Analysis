@@ -1,8 +1,7 @@
 ---
 title: "fMRI fourier Curve Smoothing"
 author: "Zach Wang"
-date: "7/1/2020"
-revised: "7/9/2020"
+date: "7/9/2020"
 output:
   html_document:
     df_print: paged
@@ -13,7 +12,7 @@ output:
 We are focusing on a single node to study the variance of the signal time series. In this Rmarkdown file, it is specified to use only *Node 1*. Replace node subset when calling the corresponding functions to study different nodes. 
 Part 3 used Generalized Cross Validation metrics to find the number of basis functions that best fit the data, which also means the curve is under-smoothed. This number will be used in 5(a) for the under-smoothed case. 
 Part 4 defined function to smooth the node, which allows user to specify the number of fourier basis function.
-Part 5 defined function to plot the smoothed curve. It takes three inputs--> data: the value of the smoothed curve; register: 0 if we want to plot the original data and 1 if we want every complete sinusoidal curve starts at 0; standardized: 0 if we don't want each plot to be standardized on horizontally and 1 if we want to standardize.
+Part 5 defined function to plot the smoothed curve. It takes three inputs--> data: the value of the smoothed curve; register: 0 if we want to plot the original data and 1 if we want every complete sinusoidal curve starts at 0; standardized: 0 if we don't want each plot to be standardized on horizontal direction and 1 if we want to standardize.
 
 
 ## 2. read data and attach packages
@@ -101,13 +100,20 @@ plot.periodicCycle = function(data, register, standardized){
       i=i+1
     }
   }
-  ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+  ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top") 
 }
 ```
 
 ### 5(a). Undersmooth with basis functions (the smalled GCV score)
 ```{r undersmooth}
 # UnderSmoothed
+
+## register: 0 --> plot data on the original timeline
+##           1 --> register every complete sinusoidal curve starting at 0;
+
+## standardized: 0 --> data will not be standardized 
+##             : 1 --> scale every complete sinusoidal curve to [0,1]. Notes: if standardized, it is equivalent to    register at 0 and standardized
+
 selection_result=fourier_selection(time_subset=c(1:600), data_mat, node_subset=c(1), kList=c(3:303))
 result_obj <- f_fourier_smooth(time_subset=c(1:600),data_mat,node_subset=c(1)
                               ,k=selection_result[which.min(selection_result[,2]),1])
@@ -120,6 +126,13 @@ plot.periodicCycle(data=smoothed_curve, register=1, standardized=1)
 ### 5(b). Oversmooth with basis functions
 ```{r OverSmooth}
 # OverSmoothed, k=32
+
+## register: 0 --> plot data on the original timeline
+##           1 --> register every complete sinusoidal curve starting at 0;
+
+## standardized: 0 --> data will not be standardized 
+##             : 1 --> scale every complete sinusoidal curve to [0,1]. Notes: if standardized, it is equivalent to     register at 0 and standardized
+
 result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=32)
 smoothed_curve = eval.fd(c(1:600),result_obj$fd)
 plot.periodicCycle(data=smoothed_curve, register=1, standardized=1)
