@@ -79,27 +79,29 @@ plot.periodicCycle = function(data, register, standardized){
   
   #put every complete cycle in a Dataframe
   i=1
+  cl=1
   result=data.frame(cycle=integer(), time=integer(), y_value=integer())
   while (i+2<=length(z_idx)){
     if (standardized==0){
       if(register==0){
-        tmp=data.frame(cycle=i, time=seq(z_idx[i],z_idx[i+2]), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
       }
       else{
-        tmp=data.frame(cycle=i, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
       }
       result=rbind(result,tmp)
     }
     else{
       if(register==0){
-        tmp=data.frame(cycle=i, time=scale(seq(z_idx[i],z_idx[i+2])), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+        tmp=data.frame(cycle=cl, time=scale(seq(z_idx[i],z_idx[i+2])), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
       }
       else{
-        tmp=data.frame(cycle=i, time=scale(seq(1,length(seq(z_idx[i],z_idx[i+2])))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]]) 
+        tmp=data.frame(cycle=cl, time=scale(seq(1,length(seq(z_idx[i],z_idx[i+2])))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]]) 
       }
       result=rbind(result,tmp)
     }
     i=i+2
+    cl=cl+1
   }
   ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
 }
