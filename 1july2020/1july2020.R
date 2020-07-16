@@ -14,7 +14,7 @@ data_mat <- as.matrix(data_15may2020)
 
 
 ### function
-plot.periodicCycle = function(data, register, standardized){
+plot.periodicCycle = function(data, register){
   # obtain index at which curve crosses 0
   x=diff(ifelse(data>0,1,0))       #crossed 0---> -1: pos to neg,    1: neg to pos
   z_idx=(1:599)[x!=0]             #returns: location index where curve crosses X-axis
@@ -26,19 +26,22 @@ plot.periodicCycle = function(data, register, standardized){
   
   #put every complete cycle in a Dataframe
   i=1
+  cl=1
   result=data.frame(cycle=integer(), time=integer(), y_value=integer())
   while (i+2<=length(z_idx)){
+    
       if(register==0){
-        tmp=data.frame(cycle=i, time=scale(seq(z_idx[i],z_idx[i+2]), scale=ifelse(standardized==0,FALSE,TRUE)), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
       }
       else{
-        tmp=data.frame(cycle=i, time=scale(seq(1,length(seq(z_idx[i],z_idx[i+2]))), scale=ifelse(standardized==0,FALSE,TRUE)), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+        tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
       }
       result=rbind(result,tmp)
       i=i+2
-  }
+      cl=cl+1
+    }
   ggplot(result, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
-  return(result)
 }
 
 
@@ -54,4 +57,4 @@ f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
 result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=50)
 smoothed_curve = eval.fd(c(1:600),result_obj$fd)
 plot.periodicCycle(data=smoothed_curve, register=1, standardized=1)
-result = plot.periodicCycle(data=smoothed_curve, register=0, standardized=0)
+plot.periodicCycle(data=smoothed_curve, register=1)
