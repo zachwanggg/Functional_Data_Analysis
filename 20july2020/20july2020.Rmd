@@ -1,0 +1,133 @@
+---
+title: "20july2020"
+author: "Zach Wang"
+date: "7/20/2020"
+output: html_document
+---
+## 1. progress summary
+
+## 2. read data and attach packages
+```{r setup, include=FALSE}
+library(zoo)
+library(fda.usc)
+library(dplyr)
+library(reshape)
+library(pracma)
+library(ggplot2)
+
+#data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+data_15may2020 <- read.csv("/Users/hanwang/desktop/Git_desktop/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
+z <- read.zoo(data_15may2020)
+data_15may2020 <- select(data_15may2020, -c(X))
+data_mat <- as.matrix(data_15may2020)
+```
+
+## 3. Defined fourier smoothing functions 
+To study a single brain node response, specify the node number in the *node_subset* list. 
+```{r smoothing_function}
+f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
+  basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k)
+  fd_obj <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)
+  smoothfd <- fd_obj$fd
+  #plot(smoothfd)
+  #title(main=paste("Fourier Basis Smoothing of node:", node_subset, ", Basis_number:",k ))
+  return(fd_obj)
+}
+```
+
+## 4. define the function to extract periodic cycle of a single node response
+```{r}
+transform.Cycle = function(data, register){
+  # obtain index at which curve crosses 0
+  #crossed 0---> -1: pos to neg,    1: neg to pos
+  #returns: location index where curve crosses X-axis
+  x=diff(ifelse(data>0,1,0))       
+  z_idx=(1:599)[x!=0]             
+  
+  # skip first crossing if it is from positive to negative
+  if (x[z_idx[1]]==-1){
+    z_idx=z_idx[-1]
+  }
+  
+  #put every complete cycle in a Dataframe
+  i=1
+  cl=1
+  result=data.frame(cycle=integer(), time=integer(), y_value=integer())
+  while (i+2<=length(z_idx)){
+    
+      if(register==0){
+        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+      }
+      else{
+        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+        tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
+      }
+      result=rbind(result,tmp)
+      i=i+2
+      cl=cl+1
+    }
+  return(result)
+}
+
+```
+
+### 5. Oversmooth with basis functions
+```{r OverSmooth}
+# OverSmoothed, k=32
+
+## register: 0 --> plot data on the original timeline
+##           1 --> register every complete sinusoidal curve starting at 0;
+
+
+result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=32)
+smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+
+transformed_node1 = transform.Cycle(smoothed_curve, register=0)
+ggplot(transformed_node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+
+transformed_node1 = transform.Cycle(smoothed_curve, register=1)
+ggplot(transformed_node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+```
+
+#### 5.1 *1st* cycle across different node 
+```{r 1st_cycle_across_nodes}
+df = data.frame(node=integer(),cycle=integer(), time=integer(), y_value=integer())
+for(i in 1:32){
+  result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(i), k=32)
+  smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+  transformed_node = transform.Cycle(smoothed_curve, register=1)
+  tmp = subset(transformed_node, cycle==1)
+  tmp$node=i
+  df=rbind(df,tmp)
+}
+ggplot(df, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(legend.position="top")
+```
+
+#### 5.2 *2nd* cycle across different node 
+```{r 2nd_cycle_across_nodes}
+df = data.frame(node=integer(),cycle=integer(), time=integer(), y_value=integer())
+for(i in 1:32){
+  result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(i), k=32)
+  smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+  transformed_node = transform.Cycle(smoothed_curve, register=1)
+  tmp = subset(transformed_node, cycle==1)
+  tmp$node=i
+  df=rbind(df,tmp)
+}
+ggplot(df, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(legend.position="top")
+```
+
+##### 5.3 interpolating and spline.fit
+```{r interpolating_fill}
+df_new = data.frame(node=integer(),cycle=integer(), time=integer(), y_value=integer())
+for(i in 1:32){
+  tmp=subset(df, node==i)
+  tmp_1=subset(tmp, time<=0)
+  tmp_2=subset(tmp, time>0)
+  tmp_1$time=(tmp_1$time) / (max(abs(tmp_1$time)))
+  tmp_2$time=(tmp_2$time) / (max(abs(tmp_2$time)))
+  tmp=rbind(tmp_1,tmp_2)
+  df_new=rbind(df_new,tmp)
+}
+ggplot(df_new, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(legend.position="top")
+```

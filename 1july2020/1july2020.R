@@ -54,7 +54,6 @@ f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
   return(fd_obj)
 }
 
-result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=50)
+result_obj <- f_fourier_smooth(time_subset=c(300:600), data_mat, node_subset=c(1), k=32)
 smoothed_curve = eval.fd(c(1:600),result_obj$fd)
-plot.periodicCycle(data=smoothed_curve, register=1, standardized=1)
 plot.periodicCycle(data=smoothed_curve, register=1)
