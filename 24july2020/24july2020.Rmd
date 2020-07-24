@@ -1,7 +1,7 @@
 ---
-title: "20july2020"
+title: "24july2020"
 author: "Zach Wang"
-date: "7/20/2020"
+date: "7/24/2020"
 output: html_document
 ---
 ## 1. progress summary
@@ -42,7 +42,7 @@ f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
 ```
 
 ## 4. define the function to extract periodic cycle of a single node response
-```{r}
+```{r , include=FALSE}
 transform.Cycle = function(data, register){
   # obtain index at which curve crosses 0
   #crossed 0---> -1: pos to neg,    1: neg to pos
@@ -62,11 +62,14 @@ transform.Cycle = function(data, register){
   while (i+2<=length(z_idx)){
     
       if(register==0){
-        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]),
+                       y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
       }
       else{
-        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
-        tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
+        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))),
+                       y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+        # align at 0
+        #tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
       }
       result=rbind(result,tmp)
       i=i+2
@@ -75,24 +78,6 @@ transform.Cycle = function(data, register){
   return(result)
 }
 
-```
-
-### 5. Oversmooth with basis functions
-```{r OverSmooth}
-# OverSmoothed, k=32
-
-## register: 0 --> plot data on the original timeline
-##           1 --> register every complete sinusoidal curve starting at 0;
-
-
-result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(1), k=32)
-smoothed_curve = eval.fd(c(1:600),result_obj$fd)
-
-transformed_node1 = transform.Cycle(smoothed_curve, register=0)
-ggplot(transformed_node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
-
-transformed_node1 = transform.Cycle(smoothed_curve, register=1)
-ggplot(transformed_node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
 ```
 
 #### 5.1 *1st* cycle across different node 
@@ -113,21 +98,17 @@ ggplot(df, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(leg
 
 ##### 5.2 Scale the timeframe of each node
 ```{r interpolating_fill}
-df_tmp = data.frame(node=integer(),cycle=integer(), time=integer(), y_value=integer())
-for(i in 1:32){
-  tmp=subset(df, node==i)
-  tmp_1=subset(tmp, time<=0)
-  tmp_2=subset(tmp, time>0)
-  tmp_1$time=(tmp_1$time) / (max(abs(tmp_1$time)))
-  tmp_2$time=(tmp_2$time) / (max(abs(tmp_2$time)))
-  tmp=rbind(tmp_1,tmp_2)
+df_tmp = data.frame(cycle=integer(), time=integer(), y_value=integer())
+for(i in 1:length(unique(transformed_node$cycle))){
+  tmp=subset(transformed_node, cycle==i)
+  tmp$time=(tmp$time)/max(tmp$time)
   df_tmp=rbind(df_tmp,tmp)
 }
 ggplot(df_tmp, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(legend.position="top")
 ```
 
 ##### 5.3 pivot the new dataframe
-```{r pivot_df}
+```{r pivot_df, include=FALSE}
 df_new = data.frame(matrix(nrow=40))
 for(i in 1:32){
   xx=seq(-1,1,length.out=40)
@@ -146,8 +127,8 @@ for(i in 1:32) names(df_new)[names(df_new) == oldnames[i]] = newnames[i]
 fPCA_subset <- function(time_subset, data_mat, node_subset, k, nharm){
 basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k) 
 smoothfd <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)$fd 
-plot(smoothfd)
-title(main="smoothed curves")
+#plot(smoothfd)
+#title(main="smoothed curves")
 pcalist = pca.fd(smoothfd, nharm, harmfdPar=fdPar(smoothfd))
 rotpcalist = varmx.pca.fd(pcalist)
 par(mfrow=c(nharm,1))
@@ -156,7 +137,7 @@ return(rotpcalist)
 }
 df_new <- as.matrix(df_new)
 rotpcalist = fPCA_subset(time_subset=c(1:40), df_new, node_subset = c(1:32)
-                         , k=32, nharm=2)
+                         , k=3, nharm=2)
 ```
 
 #### 6.1 *2nd* cycle across different node 
@@ -178,18 +159,14 @@ ggplot(df, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(leg
 df_tmp = data.frame(node=integer(),cycle=integer(), time=integer(), y_value=integer())
 for(i in 1:32){
   tmp=subset(df, node==i)
-  tmp_1=subset(tmp, time<=0)
-  tmp_2=subset(tmp, time>0)
-  tmp_1$time=(tmp_1$time) / (max(abs(tmp_1$time)))
-  tmp_2$time=(tmp_2$time) / (max(abs(tmp_2$time)))
-  tmp=rbind(tmp_1,tmp_2)
+  tmp$time=scale(tmp$time)
   df_tmp=rbind(df_tmp,tmp)
 }
 ggplot(df_tmp, aes(time, y_value,group=node, colour=node)) + geom_line() + theme(legend.position="top")
 ```
 
 ##### 6.3 pivot the new dataframe
-```{r 2_pivot_df}
+```{r 2_pivot_df, include=FALSE}
 df_new = data.frame(matrix(nrow=40))
 for(i in 1:32){
   xx=seq(-1,1,length.out=40)
@@ -208,8 +185,8 @@ for(i in 1:32) names(df_new)[names(df_new) == oldnames[i]] = newnames[i]
 fPCA_subset <- function(time_subset, data_mat, node_subset, k, nharm){
 basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k) 
 smoothfd <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)$fd 
-plot(smoothfd)
-title(main="smoothed curves")
+#plot(smoothfd)
+#title(main="smoothed curves")
 pcalist = pca.fd(smoothfd, nharm, harmfdPar=fdPar(smoothfd))
 rotpcalist = varmx.pca.fd(pcalist)
 par(mfrow=c(nharm,1))
@@ -218,5 +195,5 @@ return(rotpcalist)
 }
 df_new <- as.matrix(df_new)
 rotpcalist = fPCA_subset(time_subset=c(1:40), df_new, node_subset = c(1:32)
-                         , k=32, nharm=2)
+                         , k=3, nharm=2)
 ```
