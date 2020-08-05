@@ -4,12 +4,7 @@ author: "Zach Wang"
 date: "7/24/2020"
 output: html_document
 ---
----
-title: "single node sinusoidal and fPCA analysis"
-author: "Zach Wang"
-date: "7/24/2020"
-output: html_document
----
+
 ## 1. progress summary
 This week, as we discussed from last meeting, I have: 
 - 1. selected the 1st complete sin curve of every node and align them to register at the origin.
@@ -74,8 +69,6 @@ transform.Cycle = function(data, register){
       else{
         tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))),
                        y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
-        # align at 0
-        #tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
       }
       result=rbind(result,tmp)
       i=i+2

@@ -1,0 +1,120 @@
+---
+title: "3aug2020_v1"
+author: "Zach Wang"
+date: "8/3/2020"
+output: html_document
+---
+
+## 1. progress summary
+This week, as we discussed from last meeting, I have: 
+- 1. selected the 1st complete sin curve of every node and align them to register at the origin.
+- 2. Scale the the time frame of each node to [-1,1] while time=0 remain unchanged. I also make sure that each node have the same number of rows so that fPCA will be able to apply.
+- 3. Apply fPCA to the new dataset of curves (1st cycle of each node), and the result is that the first two Principle Component functions covers 91.5% of total variance. 
+- 4. repeat the process above for 2nd cycle of each node, and first two Principle component functions covered in total 93.7% of total variance.
+
+## 2. read data and attach packages
+```{r setup, include=FALSE}
+library(zoo)
+library(fda.usc)
+library(dplyr)
+library(reshape)
+library(reshape2)
+library(pracma)
+library(ggplot2)
+
+#data_15may2020 <- read.csv("C:/Users/Han Wang/Desktop/BioRankings/data_15may2020.csv", header=TRUE)
+data_15may2020 <- read.csv("/Users/hanwang/desktop/Git_desktop/Functional_Data_Analysis/data_15may2020.csv", header=TRUE)
+z <- read.zoo(data_15may2020)
+data_15may2020 <- select(data_15may2020, -c(X))
+data_mat <- as.matrix(data_15may2020)
+```
+
+## 3. Defined fourier smoothing functions 
+To study a single brain node response, specify the node number in the *node_subset* list. 
+```{r smoothing_function}
+f_fourier_smooth <- function(time_subset, data_mat, node_subset, k){
+  basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k)
+  fd_obj <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)
+  smoothfd <- fd_obj$fd
+  #plot(smoothfd)
+  #title(main=paste("Fourier Basis Smoothing of node:", node_subset, ", Basis_number:",k ))
+  return(fd_obj)
+}
+```
+
+## 4. define the function to extract periodic cycle of a single node response
+```{r , include=FALSE}
+transform.Cycle = function(data, register){
+  # obtain index at which curve crosses 0
+  #crossed 0---> -1: pos to neg,    1: neg to pos
+  #returns: location index where curve crosses X-axis
+  x=diff(ifelse(data>0,1,0))       
+  z_idx=(1:599)[x!=0]             
+  
+  # skip first crossing if it is from positive to negative
+  if (x[z_idx[1]]==-1){
+    z_idx=z_idx[-1]
+  }
+  
+  #put every complete cycle in a Dataframe
+  i=1
+  cl=1
+  result=data.frame(cycle=integer(), time=integer(), y_value=integer())
+  while (i+2<=length(z_idx)){
+    
+      if(register==0){
+        tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]),
+                       y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])
+      }
+      else{
+        tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))),
+                       y_value=smoothed_curve[z_idx[i]:z_idx[i+2]])  
+      }
+      result=rbind(result,tmp)
+      i=i+2
+      cl=cl+1
+    }
+  return(result)
+}
+
+```
+
+## 5. 
+```{r}
+# plot 32 plots instead
+for(node in 1:32){
+    result_obj <- f_fourier_smooth(time_subset=c(1:600), data_mat, node_subset=c(node), k=32)
+    smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+    transformed_node = transform.Cycle(smoothed_curve, register=1)
+    df_tmp = data.frame(cycle=integer(), time=integer(), y_value=integer())
+    for(i in 1:length(unique(transformed_node$cycle))){
+      tmp=subset(transformed_node, cycle==i)
+      tmp$time=(tmp$time)/max(tmp$time)
+      df_tmp=rbind(df_tmp,tmp)
+    }
+    df_new = data.frame(matrix(nrow=80))
+    for(i in 1:length(unique(df_tmp$cycle))){
+      xx=seq(0,1,length.out=80)
+      tmp=subset(df_tmp, cycle==i)
+      s=smooth.spline(x=tmp$time, y=tmp$y_value,  df = 10)
+      df_new[,ncol(df_new)+1]=predict(s,xx)$y
+    }
+    df_new=df_new[,2:(length(unique(df_tmp$cycle))+1)]
+    ## FPCA now
+    fPCA_subset <- function(data_mat, k, nharm, plt){
+      basis <- create.fourier.basis(c(1,nrow(data_mat)), k) 
+      smoothfd <- smooth.basis(1:nrow(data_mat), data_mat, basis)$fd 
+      pcalist = pca.fd(smoothfd, nharm, harmfdPar=fdPar(smoothfd))
+      rotpcalist = varmx.pca.fd(pcalist)
+      par(mfrow=c(nharm,1))
+      if(plt==1){
+        plot.pca.fd(rotpcalist)
+      } 
+      return(rotpcalist)
+    }
+    df_new <- as.matrix(df_new)
+    rotpcalist = fPCA_subset(df_new, k=11, nharm=2, plt=0)
+    par(mfrow=c(1,1))
+    plot(rotpcalist$harmonics)  
+}
+```
