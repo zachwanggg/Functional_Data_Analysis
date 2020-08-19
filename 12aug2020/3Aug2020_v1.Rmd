@@ -1,7 +1,7 @@
 ---
-title: "3aug2020_v1"
+title: "12aug2020"
 author: "Zach Wang"
-date: "8/3/2020"
+date: "8/12/2020"
 output: html_document
 ---
 
@@ -47,14 +47,12 @@ transform.Cycle = function(data, register){
   #returns: location index where curve crosses X-axis
   x=diff(ifelse(data>0,1,0))       
   z_idx=(1:599)[x!=0]             
-  
   # skip first crossing if it is from positive to negative
   if (x[z_idx[1]]==-1){
     z_idx=z_idx[-1]
   }
-  
   #put every complete cycle in a Dataframe
-  i=1
+  i=1  
   cl=1
   result=data.frame(cycle=integer(), time=integer(), y_value=integer())
   while (i+2<=length(z_idx)){

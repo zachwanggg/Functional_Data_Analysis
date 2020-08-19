@@ -1,0 +1,168 @@
+### function readin
+library(zoo)
+library(fda.usc)
+library(dplyr)
+library(reshape)
+library(reshape2)
+library(pracma)
+library(ggplot2)
+
+## function 1:
+# function to read data from specified file location, with respect to Node and Time of interest
+ReadFile <- function(file_loc, time_subset, node_subset){
+  data_mat <- read.csv(file_loc, header=TRUE)
+  data_mat <- select(data_mat, -c(X)) # input data åhas an extra column "X"
+  return(as.matrix(data_mat[time_subset,node_subset]))
+}
+
+## function 2:
+#  extract each complete periodic cycle
+# one node (600x1) at a time
+Wave = function(data, register){
+  # obtain index at which curve crosses 0
+  #crossed 0---> -1: pos to neg,    1: neg to pos
+  #returns: location index where curve crosses X-axis
+  x=diff(ifelse(data>0,1,0))       
+  z_idx=(1:599)[x!=0]             
+  # skip first crossing if it is from positive to negative
+  if (x[z_idx[1]]==-1){
+    z_idx=z_idx[-1]
+  }
+  #put every complete cycle in a Dataframe
+  i=1
+  cl=1
+  result=data.frame(cycle=integer(), time=integer(), y_value=integer())
+  while (i+2<=length(z_idx)){
+    if(register==0){
+      tmp=data.frame(cycle=cl, time=seq(z_idx[i],z_idx[i+2]), y_value=data[z_idx[i]:z_idx[i+2]])
+    }
+    else{
+      tmp=data.frame(cycle=cl, time=seq(1,length(seq(z_idx[i],z_idx[i+2]))), y_value=data[z_idx[i]:z_idx[i+2]])  
+      tmp[,2]=tmp[,2]-length(seq(z_idx[i],z_idx[i+1]))-1
+    }
+    result=rbind(result,tmp)
+    i=i+2
+    cl=cl+1
+  }
+  return(result)
+}
+
+## function 3:
+# Defined fourier smoothing functions 
+# To study a single brain node response, specify the node number in the *node_subset* list. 
+fourier_smooth <- function(data_mat, time_subset, node_subset, k){
+  basis <- create.fourier.basis(c(time_subset[1],time_subset[length(time_subset)]), k)
+  fd_obj <- smooth.basis(time_subset, data_mat[time_subset,node_subset], basis)
+  smoothfd <- fd_obj$fd
+  #plot(smoothfd)
+  #title(main=paste("Fourier Basis Smoothing of node:", node_subset, ", Basis_number:",k ))
+  return(fd_obj)
+}
+
+## function 4
+# FPCA function
+fPCA.nodes <- function(data_mat, k, nharm, plt){
+  smoothfd <- fourier_smooth(data_mat, c(1:600), c(1:32), k)
+  pcalist = pca.fd(smoothfd, nharm, harmfdPar=fdPar(smoothfd))
+  rotpcalist = varmx.pca.fd(pcalist)
+  par(mfrow=c(nharm,1))
+  if(plt==1){
+    plot.pca.fd(rotpcalist)
+  } 
+  return(rotpcalist)
+}
+
+## function 5 
+# Scale the node timeframe to [-1,1] and make make sure each cycle has same number of rows
+node.scaler <-  function(data_mat, node){
+    result_obj <- fourier_smooth(data_mat, time_subset=c(1:600), node_subset=c(node), k=32)
+    smoothed_curve = eval.fd(c(1:600),result_obj$fd)
+    transformed_node = Wave(smoothed_curve, register=1)
+    df_tmp = data.frame(cycle=integer(), time=integer(), y_value=integer())
+    for(i in 1:length(unique(transformed_node$cycle))){
+      tmp=subset(transformed_node, cycle==i)
+      tmp$time = ifelse(tmp$time<=0, (tmp$time)/abs(min(tmp$time)), (tmp$time)/abs(max(tmp$time)))
+      df_tmp=rbind(df_tmp,tmp)
+    }
+    par(mfrow=c(1,1))
+    return(df_tmp)
+}
+
+## function 6
+# make sure they have same row number
+row.check <- function(node_data) {
+  node_df = data.frame(matrix(nrow=80))
+  for(i in 1:length(unique(node_data$cycle))){
+    xx=seq(-1,1,length.out=80)
+    tmp=subset(node_data, cycle==i)
+    s=smooth.spline(x=tmp$time, y=tmp$y_value,  df = 10)
+    node_df[,ncol(node_df)+1]=predict(s,xx)$y
+  }
+  node_df=node_df[,2:(length(unique(node_data$cycle))+1)]  
+  #node_df <- as.matrix(node_df)
+  return(node_df)
+}
+
+##########################################
+#           main  script                #
+##########################################
+
+# read in data from file location
+file_loc = '/Users/hanwang/desktop/Git_desktop/Functional_Data_Analysis/data_15may2020.csv'
+data_15may2020 <- ReadFile(file_loc, time_subset=c(1:600), node_subset=c(1:32))
+# extract periodic curves from a single node (before smoothing)
+node1 = Wave(data_15may2020[,1], register=0)
+ggplot(node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+node1 = Wave(data_15may2020[,1], register=1)
+ggplot(node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+# extract periodic curves from a single node (after smoothing)
+result_obj <- fourier_smooth(data_15may2020, time_subset=c(1:600), node_subset=c(1), k=32)
+node1_smoothed = eval.fd(c(1:600),result_obj$fd)
+node1_smoothed_extraced = Wave(node1_smoothed, register=0)
+ggplot(node1_smoothed_extraced, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+node1_smoothed_extraced = Wave(node1_smoothed, register=1)
+ggplot(node1_smoothed_extraced, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+
+# fPCA on raw data
+rotpcalist = fPCA_subset(data_15may2020, k=11, nharm=2, plt=1)
+
+# apply scaler to *single node* and match row numbers
+a = node.scaler(data_15may2020, 1)
+ggplot(a, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
+b = row.check(a)
+b = read.zoo(b, index='index')
+autoplot(b, facet = NULL)
+
+# fPCA on all nodes
+PC1_df = data.frame(matrix(nrow=80))
+PC2_df = data.frame(matrix(nrow=80))
+mean_df = data.frame(matrix(nrow=80))
+for(node in 1:32){
+  node.df = node.scaler(data_15may2020, node)
+  node.df = row.check(node.df)
+  rotpcalist = fPCA_subset(as.matrix(node.df), k=11, nharm=2, plt=0)
+  # PC1 & PC2
+  harmfd <- rotpcalist[[1]]
+  basisfd <- harmfd$basis
+  rangex <- basisfd$rangeval
+  x <- seq(rangex[1], rangex[2], length = harmfd$basis$rangeval[2])
+  fdmat <- eval.fd(x, harmfd)
+  meanmat <- eval.fd(x, rotpcalist$meanfd)
+  PC1_df[,ncol(PC1_df)+1]=fdmat[,1]    
+  PC2_df[,ncol(PC2_df)+1]=fdmat[,2]
+  mean_df[,ncol(mean_df)+1]=meanmat
+}
+
+PC1_df = data.frame(PC1_df[,2:(ncol(PC1_df))])
+names(PC1_df)=colnames(data_mat)
+PC2_df = data.frame(PC2_df[,2:(ncol(PC2_df))])
+names(PC2_df)=colnames(data_mat)
+mean_df = data.frame(mean_df[,2:(ncol(mean_df))])
+names(mean_df)=colnames(data_mat)
+## plot
+z_1 = read.zoo(PC1_df, index='index')
+z_2 = read.zoo(PC2_df, index='index')
+z_3 = read.zoo(mean_df, index='index')
+autoplot(z_1, facet = NULL)
+autoplot(z_2, facet = NULL)
+autoplot(z_3, facet = NULL)
