@@ -62,7 +62,7 @@ fourier_smooth <- function(data_mat, time_subset, node_subset, k){
 ## function 4
 # FPCA function
 fPCA.nodes <- function(data_mat, k, nharm, plt){
-  smoothfd <- fourier_smooth(data_mat, c(1:600), c(1:32), k)
+  smoothfd <- fourier_smooth(data_mat, time_subset=c(1:nrow(data_mat)), node_subset=c(1:ncol(data_mat)), k)$fd
   pcalist = pca.fd(smoothfd, nharm, harmfdPar=fdPar(smoothfd))
   rotpcalist = varmx.pca.fd(pcalist)
   par(mfrow=c(nharm,1))
@@ -92,6 +92,7 @@ node.scaler <-  function(data_mat, node){
 # make sure they have same row number
 row.check <- function(node_data) {
   node_df = data.frame(matrix(nrow=80))
+  node.name = unique(node_data$cycle)
   for(i in 1:length(unique(node_data$cycle))){
     xx=seq(-1,1,length.out=80)
     tmp=subset(node_data, cycle==i)
@@ -100,6 +101,7 @@ row.check <- function(node_data) {
   }
   node_df=node_df[,2:(length(unique(node_data$cycle))+1)]  
   #node_df <- as.matrix(node_df)
+  names(node_df) = node.name
   return(node_df)
 }
 
@@ -124,7 +126,7 @@ node1_smoothed_extraced = Wave(node1_smoothed, register=1)
 ggplot(node1_smoothed_extraced, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="top")
 
 # fPCA on raw data
-rotpcalist = fPCA_subset(data_15may2020, k=11, nharm=2, plt=1)
+rotpcalist = fPCA.nodes(data_15may2020, k=11, nharm=2, plt=1)
 
 # apply scaler to *single node* and match row numbers
 a = node.scaler(data_15may2020, 1)
@@ -133,14 +135,16 @@ b = row.check(a)
 b = read.zoo(b, index='index')
 autoplot(b, facet = NULL)
 
+
+########
 # fPCA on all nodes
 PC1_df = data.frame(matrix(nrow=80))
 PC2_df = data.frame(matrix(nrow=80))
 mean_df = data.frame(matrix(nrow=80))
 for(node in 1:32){
   node.df = node.scaler(data_15may2020, node)
-  node.df = row.check(node.df)
-  rotpcalist = fPCA_subset(as.matrix(node.df), k=11, nharm=2, plt=0)
+  node.df = as.matrix(row.check(node.df))
+  rotpcalist = fPCA.nodes(data_mat=node.df, k=11, nharm=2, plt=0)
   # PC1 & PC2
   harmfd <- rotpcalist[[1]]
   basisfd <- harmfd$basis
@@ -152,13 +156,12 @@ for(node in 1:32){
   PC2_df[,ncol(PC2_df)+1]=fdmat[,2]
   mean_df[,ncol(mean_df)+1]=meanmat
 }
-
 PC1_df = data.frame(PC1_df[,2:(ncol(PC1_df))])
-names(PC1_df)=colnames(data_mat)
+names(PC1_df)=colnames(data_15may2020)
 PC2_df = data.frame(PC2_df[,2:(ncol(PC2_df))])
-names(PC2_df)=colnames(data_mat)
+names(PC2_df)=colnames(data_15may2020)
 mean_df = data.frame(mean_df[,2:(ncol(mean_df))])
-names(mean_df)=colnames(data_mat)
+names(mean_df)=colnames(data_15may2020)
 ## plot
 z_1 = read.zoo(PC1_df, index='index')
 z_2 = read.zoo(PC2_df, index='index')
