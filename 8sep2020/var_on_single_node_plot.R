@@ -1,8 +1,8 @@
-node1 = Wave(patient28[,1], register=1)
+node1 = Wave(node1[,3], register=1)
 ggplot(node1, aes(time, y_value,group=cycle, colour=cycle)) + geom_line() + theme(legend.position="right")+ggtitle("Patient 1, Node 1")
 
 
-a = node.scaler(patient9, node=c(1))
+a = node.scaler(tmp, node=c(1))
 b = row.check(node_data=a)
 b = read.zoo(b, index='index')
 autoplot(b, facet = NULL, main='Patient 9, Node 1')
